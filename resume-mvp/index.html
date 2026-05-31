@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ResumePilot MVP</title>
+  <title>Resumate MVP</title>
   <link rel="stylesheet" href="styles.css">
   <script src="app.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" async></script>
@@ -13,9 +13,9 @@
   <main class="app-shell">
     <header class="workspace-header">
       <div>
-        <p class="eyebrow">AI Resume & Interview MVP</p>
-        <h1>ResumePilot</h1>
-        <p class="intro">上传简历，匹配岗位 JD，生成 STAR 简历优化、面试题、追问和面试总结。</p>
+        <p class="eyebrow">AI Resume & Interview Coach</p>
+        <h1>Resumate</h1>
+        <p class="intro">上传简历，匹配岗位 JD，生成 STAR 优化建议，并完成带两轮追问的模拟面试。</p>
       </div>
       <div class="header-actions">
         <button class="ghost-button" id="loadDemoButton" type="button">载入示例</button>
@@ -112,7 +112,7 @@
       <div class="section-heading">
         <div>
           <h2 id="interviewTitle">模拟面试</h2>
-          <p>选择一个问题，用文字或语音回答。提交后系统会给反馈，并生成一个追问。</p>
+          <p>选择一个问题，用文字或语音回答。每个主问题会连续追问 2 次，帮助你把案例讲深。</p>
         </div>
         <button class="secondary-button" id="generateQuestionsButton" type="button">刷新问题</button>
       </div>
@@ -128,6 +128,12 @@
             <span id="questionCategory">项目深挖</span>
             <h3 id="currentQuestion">请先生成分析。</h3>
           </div>
+          <div class="conversation-progress" id="conversationProgress">
+            <span class="active">主问题</span>
+            <span>追问 1</span>
+            <span>追问 2</span>
+          </div>
+          <div class="turn-history" id="turnHistory"></div>
           <textarea id="answerInput" rows="8" placeholder="在这里输入回答。建议按：背景、任务、行动、结果、复盘 来组织。"></textarea>
           <div class="answer-actions">
             <button class="icon-text-button" id="voiceButton" type="button" title="使用浏览器语音识别">录音</button>

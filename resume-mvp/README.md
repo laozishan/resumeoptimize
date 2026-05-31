@@ -1,4 +1,4 @@
-# ResumePilot MVP
+# Resumate MVP
 
 一个简历优化与模拟面试 MVP，用于演示：
 

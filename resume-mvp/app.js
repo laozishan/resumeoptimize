@@ -9,6 +9,7 @@ const state = {
   questions: [],
   currentQuestionIndex: 0,
   answers: [],
+  activeSession: null,
   aiFitSummary: ""
 };
 
@@ -36,6 +37,8 @@ const els = {
   questionList: document.querySelector("#questionList"),
   questionCategory: document.querySelector("#questionCategory"),
   currentQuestion: document.querySelector("#currentQuestion"),
+  conversationProgress: document.querySelector("#conversationProgress"),
+  turnHistory: document.querySelector("#turnHistory"),
   answerInput: document.querySelector("#answerInput"),
   voiceButton: document.querySelector("#voiceButton"),
   submitAnswerButton: document.querySelector("#submitAnswerButton"),
@@ -186,6 +189,7 @@ els.resetButton.addEventListener("click", () => {
     questions: [],
     currentQuestionIndex: 0,
     answers: [],
+    activeSession: null,
     aiFitSummary: ""
   });
   updateInputStatus();
@@ -460,6 +464,7 @@ function renderQuestions() {
     button.innerHTML = `<span>${escapeHtml(question.category)}</span>${escapeHtml(question.text)}`;
     button.addEventListener("click", () => {
       state.currentQuestionIndex = index;
+      state.activeSession = null;
       els.answerInput.value = "";
       els.feedbackPanel.classList.add("hidden");
       renderQuestions();
@@ -468,8 +473,67 @@ function renderQuestions() {
   });
 
   const current = state.questions[state.currentQuestionIndex];
+  const session = getActiveSession();
   els.questionCategory.textContent = current.category;
-  els.currentQuestion.textContent = current.text;
+  els.currentQuestion.textContent = session.currentPrompt;
+  els.submitAnswerButton.textContent = session.turnIndex === 0 ? "提交回答" : `提交追问 ${session.turnIndex}`;
+  renderConversationProgress();
+  renderTurnHistory();
+}
+
+function getActiveSession() {
+  const question = state.questions[state.currentQuestionIndex];
+  if (
+    !state.activeSession ||
+    state.activeSession.questionIndex !== state.currentQuestionIndex ||
+    state.activeSession.question !== question.text
+  ) {
+    state.activeSession = {
+      questionIndex: state.currentQuestionIndex,
+      category: question.category,
+      question: question.text,
+      currentPrompt: question.text,
+      turnIndex: 0,
+      turns: [],
+      completed: false
+    };
+  }
+  return state.activeSession;
+}
+
+function renderConversationProgress() {
+  if (!els.conversationProgress) return;
+  const labels = ["主问题", "追问 1", "追问 2"];
+  const session = state.activeSession;
+  els.conversationProgress.innerHTML = "";
+  labels.forEach((label, index) => {
+    const marker = document.createElement("span");
+    marker.textContent = label;
+    marker.className = index === session.turnIndex ? "active" : "";
+    if (index < session.turns.length) marker.classList.add("done");
+    els.conversationProgress.appendChild(marker);
+  });
+}
+
+function renderTurnHistory() {
+  if (!els.turnHistory) return;
+  const session = state.activeSession;
+  els.turnHistory.innerHTML = "";
+  if (!session || !session.turns.length) {
+    els.turnHistory.classList.add("hidden");
+    return;
+  }
+  els.turnHistory.classList.remove("hidden");
+  session.turns.forEach((turn, index) => {
+    const item = document.createElement("article");
+    item.className = "turn-card";
+    item.innerHTML = `
+      <span>第 ${index + 1} 轮</span>
+      <strong>${escapeHtml(turn.prompt)}</strong>
+      <p>${escapeHtml(turn.answer)}</p>
+    `;
+    els.turnHistory.appendChild(item);
+  });
 }
 
 async function submitAnswer() {
@@ -483,35 +547,66 @@ async function submitAnswer() {
     return;
   }
 
-  const question = state.questions[state.currentQuestionIndex];
+  const session = getActiveSession();
+  if (session.completed) {
+    state.activeSession = null;
+    renderQuestions();
+    els.answerFeedback.textContent = "这一题已经完成。已为你重开同一题，可以重新练一遍。";
+    els.feedbackPanel.classList.remove("hidden");
+    return;
+  }
+  const question = {
+    text: session.currentPrompt,
+    category: session.turnIndex === 0 ? session.category : `追问 ${session.turnIndex}`
+  };
   setBusy(els.submitAnswerButton, true, "评估中");
   let feedback = scoreAnswer(answer);
-  let followup = buildFollowup(answer, question);
+  let followup = session.turnIndex < 2 ? buildFollowup(answer, question, session.turnIndex) : "";
   try {
     const ai = await requestAi("answer", {
       question: question.text,
       category: question.category,
       answer,
+      turnIndex: session.turnIndex,
+      previousTurns: session.turns,
       resumeText: state.resumeText,
       jdText: state.jdText
     });
     feedback = ai.feedback || feedback;
-    followup = ai.followup || followup;
+    followup = session.turnIndex < 2 ? (ai.followup || followup) : "";
   } catch (error) {
     feedback = `${feedback} DeepSeek 暂不可用，本次使用本地反馈。`;
   } finally {
     setBusy(els.submitAnswerButton, false, "提交回答");
   }
-  state.answers.push({
-    question: question.text,
+
+  session.turns.push({
+    prompt: question.text,
     category: question.category,
     answer,
     feedback,
     followup
   });
+
   els.answerFeedback.textContent = feedback;
-  els.followupQuestion.textContent = followup;
+  els.answerInput.value = "";
+
+  if (session.turnIndex < 2 && followup) {
+    session.turnIndex += 1;
+    session.currentPrompt = followup;
+    els.followupQuestion.textContent = followup;
+    els.submitAnswerButton.textContent = session.turnIndex === 1 ? "提交追问 1" : "提交追问 2";
+  } else {
+    session.completed = true;
+    state.answers.push(structuredClone(session));
+    els.followupQuestion.textContent = "这一题已完成 2 轮追问。你可以切换下一题，或生成面试总结。";
+    els.submitAnswerButton.textContent = "继续练这一题";
+  }
+
   els.feedbackPanel.classList.remove("hidden");
+  els.currentQuestion.textContent = session.currentPrompt;
+  renderConversationProgress();
+  renderTurnHistory();
   renderSummary();
 }
 
@@ -526,7 +621,13 @@ function scoreAnswer(answer) {
   return `当前回答亮点：${passed.map((signal) => signal.good).join("、") || "已经给出基础信息"}。建议补强：${signals.filter((signal) => !signal.ok).map((signal) => signal.bad).join("；") || "结构已经比较完整，可以继续压缩表达。"}。`;
 }
 
-function buildFollowup(answer, question) {
+function buildFollowup(answer, question, turnIndex = 0) {
+  if (turnIndex === 1) {
+    if (!/复盘|学到|后来|改进|调整|下次/.test(answer)) {
+      return "如果这件事重来一次，你会保留什么做法，又会具体调整哪一步？";
+    }
+    return `把刚才这个案例迁移到目标岗位，入职前 30 天你会优先做哪三件事？`;
+  }
   if (!hasMetric(answer)) {
     return "你刚才提到的结果能否用一个具体指标说明？比如提升、降低、节省或覆盖了多少用户。";
   }
@@ -572,9 +673,10 @@ function renderSummary() {
     return;
   }
 
-  const avgLength = Math.round(state.answers.reduce((sum, item) => sum + item.answer.length, 0) / state.answers.length);
-  const metricCount = state.answers.filter((item) => hasMetric(item.answer)).length;
-  els.overallSummary.textContent = `本轮已完成 ${state.answers.length} 个回答，平均回答长度 ${avgLength} 字，${metricCount} 个回答包含量化结果。整体可以继续强化“个人贡献 + 业务结果 + 复盘迁移”。`;
+  const allTurns = state.answers.flatMap((session) => session.turns || []);
+  const avgLength = Math.round(allTurns.reduce((sum, item) => sum + item.answer.length, 0) / allTurns.length);
+  const metricCount = allTurns.filter((item) => hasMetric(item.answer)).length;
+  els.overallSummary.textContent = `本轮已完成 ${state.answers.length} 个主问题、${allTurns.length} 轮回答，平均回答长度 ${avgLength} 字，${metricCount} 轮回答包含量化结果。整体可以继续强化“个人贡献 + 业务结果 + 复盘迁移”。`;
   renderList(els.strengthList, [
     state.matched.length ? `简历已覆盖 ${state.matched.slice(0, 4).join("、")} 等关键词。` : "已经完成基础资料输入。",
     metricCount ? "部分回答能够给出结果信号。" : "回答已经有案例基础，适合继续打磨。",
@@ -582,7 +684,7 @@ function renderSummary() {
   ]);
   renderList(els.riskList, [
     state.missing.length ? `JD 里的 ${state.missing.slice(0, 4).join("、")} 暂未在简历中明显出现。` : "关键词缺口较少，风险主要在表达深度。",
-    metricCount < state.answers.length ? "部分回答缺少数字或结果，会削弱可信度。" : "结果表达较好，但仍需准备追问细节。",
+    metricCount < allTurns.length ? "部分回答缺少数字或结果，会削弱可信度。" : "结果表达较好，但仍需准备追问细节。",
     "如果案例只讲团队成果，面试官可能继续追问个人贡献。"
   ]);
   renderList(els.practiceList, [
@@ -595,11 +697,17 @@ function renderSummary() {
   state.answers.slice().reverse().forEach((item) => {
     const card = document.createElement("article");
     card.className = "history-item";
+    const turns = (item.turns || []).map((turn, index) => `
+      <div class="history-turn">
+        <span>第 ${index + 1} 轮</span>
+        <p><strong>${escapeHtml(turn.prompt)}</strong></p>
+        <p>${escapeHtml(turn.answer)}</p>
+        <p>${escapeHtml(turn.feedback)}</p>
+      </div>
+    `).join("");
     card.innerHTML = `
       <strong>${escapeHtml(item.category)}：${escapeHtml(item.question)}</strong>
-      <p>${escapeHtml(item.answer)}</p>
-      <p>${escapeHtml(item.feedback)}</p>
-      <p>追问：${escapeHtml(item.followup)}</p>
+      ${turns}
     `;
     els.answerHistory.appendChild(card);
   });

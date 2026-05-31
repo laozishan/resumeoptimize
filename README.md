@@ -1,6 +1,6 @@
-# ResumeOptimize
+# Resumate
 
-ResumeOptimize is an MVP for AI-assisted resume optimization and interview practice.
+Resumate is an MVP for AI-assisted resume optimization and interview practice.
 
 The app lives in `resume-mvp` and includes:
 

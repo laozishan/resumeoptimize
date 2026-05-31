@@ -41,7 +41,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(`ResumePilot running at http://127.0.0.1:${port}`);
+  console.log(`Resumate running at http://127.0.0.1:${port}`);
 });
 
 function loadEnvFile(filePath) {
@@ -124,10 +124,12 @@ function buildPrompt(body) {
 
   if (task === "answer") {
     return JSON.stringify({
-      instruction: "请评价候选人的面试回答，并给一个自然追问。输出字段：feedback:string, followup:string。反馈要简洁、具体、可执行。",
+      instruction: "请评价候选人的面试回答，并在前两轮回答后给一个自然追问。输出字段：feedback:string, followup:string。turnIndex 为 0 时追问案例细节或量化结果；turnIndex 为 1 时追问复盘、取舍或岗位迁移；turnIndex 为 2 时 followup 为空字符串。反馈要简洁、具体、可执行。",
       question: payload.question,
       category: payload.category,
       answer: truncate(payload.answer, 4000),
+      turnIndex: payload.turnIndex || 0,
+      previousTurns: payload.previousTurns || [],
       jdText: truncate(payload.jdText, 4000),
       resumeText: truncate(payload.resumeText, 5000)
     });
