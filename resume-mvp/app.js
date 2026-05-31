@@ -16,6 +16,8 @@ const state = {
 const els = {
   resumeFile: document.querySelector("#resumeFile"),
   jdFile: document.querySelector("#jdFile"),
+  resumeDropZone: document.querySelector("#resumeDropZone"),
+  jdDropZone: document.querySelector("#jdDropZone"),
   resumeText: document.querySelector("#resumeText"),
   jdText: document.querySelector("#jdText"),
   resumeStatus: document.querySelector("#resumeStatus"),
@@ -100,22 +102,49 @@ els.jdText.addEventListener("input", () => {
 els.resumeFile.addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
-  els.resumeStatus.textContent = "解析中...";
-  try {
-    const text = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
-      ? await extractPdfText(file)
-      : await file.text();
-    els.resumeText.value = text.trim();
-    state.resumeText = els.resumeText.value;
-    els.resumeStatus.textContent = text.trim() ? "已读取" : "未识别到文本";
-  } catch (error) {
-    els.resumeStatus.textContent = "解析失败，请粘贴文本";
-  }
+  await handleResumeFile(file);
+  event.target.value = "";
 });
 
 els.jdFile.addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
+  await handleJdFile(file);
+  event.target.value = "";
+});
+
+setupDropZone(els.resumeDropZone, handleResumeFile, {
+  accept: (file) => isPdf(file) || isTextFile(file),
+  rejectedMessage: "请拖入 PDF、TXT 或 Markdown 简历"
+});
+
+setupDropZone(els.jdDropZone, handleJdFile, {
+  accept: (file) => isTextFile(file) || file.type.startsWith("image/"),
+  rejectedMessage: "请拖入 TXT/Markdown JD 或图片截图"
+});
+
+async function handleResumeFile(file) {
+  if (!isPdf(file) && !isTextFile(file)) {
+    els.resumeStatus.textContent = "格式不支持";
+    return;
+  }
+  els.resumeStatus.textContent = "解析中...";
+  try {
+    const text = isPdf(file) ? await extractPdfText(file) : await file.text();
+    els.resumeText.value = text.trim();
+    state.resumeText = els.resumeText.value;
+    els.resumeStatus.textContent = text.trim() ? `已读取：${file.name}` : "未识别到文本";
+    updateInputStatus();
+  } catch (error) {
+    els.resumeStatus.textContent = "解析失败，请粘贴文本";
+  }
+}
+
+async function handleJdFile(file) {
+  if (!isTextFile(file) && !file.type.startsWith("image/")) {
+    els.jdStatus.textContent = "格式不支持";
+    return;
+  }
   els.jdStatus.textContent = "解析中...";
   try {
     if (file.type.startsWith("image/")) {
@@ -134,12 +163,65 @@ els.jdFile.addEventListener("change", async (event) => {
       const text = await file.text();
       els.jdText.value = text.trim();
       state.jdText = els.jdText.value;
-      els.jdStatus.textContent = text.trim() ? "已读取" : "未识别到文本";
+      els.jdStatus.textContent = text.trim() ? `已读取：${file.name}` : "未识别到文本";
     }
+    updateInputStatus();
   } catch (error) {
     els.jdStatus.textContent = "解析失败，请粘贴文本";
   }
-});
+}
+
+function setupDropZone(zone, handler, options) {
+  if (!zone) return;
+
+  ["dragenter", "dragover"].forEach((eventName) => {
+    zone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      zone.classList.add("drag-over");
+    });
+  });
+
+  ["dragleave", "drop"].forEach((eventName) => {
+    zone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      zone.classList.remove("drag-over");
+    });
+  });
+
+  zone.addEventListener("drop", async (event) => {
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    if (!options.accept(file)) {
+      showDropError(zone, options.rejectedMessage);
+      return;
+    }
+    zone.classList.add("is-loading");
+    await handler(file);
+    zone.classList.remove("is-loading");
+  });
+}
+
+function showDropError(zone, message) {
+  zone.classList.add("drop-error");
+  const hint = zone.querySelector("small");
+  const previous = hint?.textContent;
+  if (hint) hint.textContent = message;
+  window.setTimeout(() => {
+    zone.classList.remove("drop-error");
+    if (hint && previous) hint.textContent = previous;
+  }, 1800);
+}
+
+function isPdf(file) {
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+}
+
+function isTextFile(file) {
+  const name = file.name.toLowerCase();
+  return file.type.startsWith("text/") || name.endsWith(".txt") || name.endsWith(".md");
+}
 
 els.analyzeButton.addEventListener("click", async () => {
   await runAnalysis();

@@ -45,10 +45,10 @@
             <h3>简历</h3>
             <span id="resumeStatus">等待输入</span>
           </div>
-          <label class="file-drop" for="resumeFile">
+          <label class="file-drop" id="resumeDropZone" for="resumeFile">
             <input id="resumeFile" type="file" accept=".pdf,.txt,.md,text/plain,application/pdf">
             <strong>上传 PDF / TXT 简历</strong>
-            <small>或把简历文本粘贴到下方</small>
+            <small>点击选择，或把文件拖到这里</small>
           </label>
           <textarea id="resumeText" rows="14" placeholder="粘贴简历文本，例如：项目、实习、工作经历、技能栈、教育背景..."></textarea>
         </article>
@@ -58,10 +58,10 @@
             <h3>岗位 JD</h3>
             <span id="jdStatus">等待输入</span>
           </div>
-          <label class="file-drop" for="jdFile">
+          <label class="file-drop" id="jdDropZone" for="jdFile">
             <input id="jdFile" type="file" accept=".txt,.md,.png,.jpg,.jpeg,.webp,text/plain,image/*">
             <strong>上传 JD 文本 / 截图</strong>
-            <small>截图会尝试 OCR，也可以直接粘贴</small>
+            <small>点击选择，或拖入 JD 文本/截图</small>
           </label>
           <textarea id="jdText" rows="14" placeholder="粘贴岗位 JD：职责、任职要求、技能关键词、加分项..."></textarea>
           <div class="image-preview hidden" id="imagePreviewWrap">
