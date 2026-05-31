@@ -1,0 +1,12 @@
+{
+  "name": "resumepilot-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Resume and interview coaching MVP powered by DeepSeek API.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

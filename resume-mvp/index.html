@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ResumePilot MVP</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" async></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" async></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="workspace-header">
+      <div>
+        <p class="eyebrow">AI Resume & Interview MVP</p>
+        <h1>ResumePilot</h1>
+        <p class="intro">上传简历，匹配岗位 JD，生成 STAR 简历优化、面试题、追问和面试总结。</p>
+      </div>
+      <div class="header-actions">
+        <button class="ghost-button" id="loadDemoButton" type="button">载入示例</button>
+        <button class="ghost-button danger" id="resetButton" type="button">清空</button>
+      </div>
+    </header>
+
+    <nav class="step-nav" aria-label="MVP workflow">
+      <button class="step-button active" type="button" data-step="source">1 资料</button>
+      <button class="step-button" type="button" data-step="optimize">2 优化</button>
+      <button class="step-button" type="button" data-step="interview">3 面试</button>
+      <button class="step-button" type="button" data-step="summary">4 总结</button>
+    </nav>
+
+    <section class="step-panel active" id="sourcePanel" aria-labelledby="sourceTitle">
+      <div class="section-heading">
+        <div>
+          <h2 id="sourceTitle">资料输入</h2>
+          <p>PDF 解析和截图 OCR 会优先尝试在浏览器本地完成；如果 CDN 不可用，可以直接粘贴文本。</p>
+        </div>
+        <button class="primary-button" id="analyzeButton" type="button">生成分析</button>
+      </div>
+
+      <div class="input-grid">
+        <article class="input-panel">
+          <div class="panel-topline">
+            <h3>简历</h3>
+            <span id="resumeStatus">等待输入</span>
+          </div>
+          <label class="file-drop" for="resumeFile">
+            <input id="resumeFile" type="file" accept=".pdf,.txt,.md,text/plain,application/pdf">
+            <strong>上传 PDF / TXT 简历</strong>
+            <small>或把简历文本粘贴到下方</small>
+          </label>
+          <textarea id="resumeText" rows="14" placeholder="粘贴简历文本，例如：项目、实习、工作经历、技能栈、教育背景..."></textarea>
+        </article>
+
+        <article class="input-panel">
+          <div class="panel-topline">
+            <h3>岗位 JD</h3>
+            <span id="jdStatus">等待输入</span>
+          </div>
+          <label class="file-drop" for="jdFile">
+            <input id="jdFile" type="file" accept=".txt,.md,.png,.jpg,.jpeg,.webp,text/plain,image/*">
+            <strong>上传 JD 文本 / 截图</strong>
+            <small>截图会尝试 OCR，也可以直接粘贴</small>
+          </label>
+          <textarea id="jdText" rows="14" placeholder="粘贴岗位 JD：职责、任职要求、技能关键词、加分项..."></textarea>
+          <div class="image-preview hidden" id="imagePreviewWrap">
+            <img id="imagePreview" alt="JD screenshot preview">
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="step-panel" id="optimizePanel" aria-labelledby="optimizeTitle">
+      <div class="section-heading">
+        <div>
+          <h2 id="optimizeTitle">STAR 优化建议</h2>
+          <p>先把经历变得更具体，再让它贴近岗位关键词；系统不会编造不存在的经历。</p>
+        </div>
+        <button class="primary-button" id="refreshAnalysisButton" type="button">重新生成</button>
+      </div>
+
+      <div class="analysis-grid">
+        <article class="metric-panel">
+          <span class="metric-label">岗位匹配度</span>
+          <strong id="fitScore">--</strong>
+          <p id="fitSummary">请先输入简历和 JD。</p>
+        </article>
+        <article class="metric-panel">
+          <span class="metric-label">命中关键词</span>
+          <div class="chip-list" id="matchedKeywords"></div>
+        </article>
+        <article class="metric-panel">
+          <span class="metric-label">建议补强</span>
+          <div class="chip-list warning" id="missingKeywords"></div>
+        </article>
+      </div>
+
+      <div class="result-grid">
+        <article class="result-panel">
+          <h3>经历改写</h3>
+          <div class="suggestion-list" id="starSuggestions"></div>
+        </article>
+        <article class="result-panel">
+          <h3>简历策略</h3>
+          <ul class="strategy-list" id="resumeStrategy"></ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="step-panel" id="interviewPanel" aria-labelledby="interviewTitle">
+      <div class="section-heading">
+        <div>
+          <h2 id="interviewTitle">模拟面试</h2>
+          <p>选择一个问题，用文字或语音回答。提交后系统会给反馈，并生成一个追问。</p>
+        </div>
+        <button class="secondary-button" id="generateQuestionsButton" type="button">刷新问题</button>
+      </div>
+
+      <div class="interview-layout">
+        <aside class="question-bank">
+          <h3>问题列表</h3>
+          <div id="questionList" class="question-list"></div>
+        </aside>
+
+        <article class="answer-panel">
+          <div class="current-question">
+            <span id="questionCategory">项目深挖</span>
+            <h3 id="currentQuestion">请先生成分析。</h3>
+          </div>
+          <textarea id="answerInput" rows="8" placeholder="在这里输入回答。建议按：背景、任务、行动、结果、复盘 来组织。"></textarea>
+          <div class="answer-actions">
+            <button class="icon-text-button" id="voiceButton" type="button" title="使用浏览器语音识别">录音</button>
+            <button class="primary-button" id="submitAnswerButton" type="button">提交回答</button>
+          </div>
+          <div class="feedback-panel hidden" id="feedbackPanel">
+            <h3>反馈与追问</h3>
+            <p id="answerFeedback"></p>
+            <div class="followup-box">
+              <span>追问</span>
+              <strong id="followupQuestion"></strong>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="step-panel" id="summaryPanel" aria-labelledby="summaryTitle">
+      <div class="section-heading">
+        <div>
+          <h2 id="summaryTitle">面试总结</h2>
+          <p>总结会基于简历、JD 和已提交回答生成，适合面试后复盘。</p>
+        </div>
+        <button class="primary-button" id="summaryButton" type="button">生成总结</button>
+      </div>
+
+      <div class="summary-grid">
+        <article class="summary-panel">
+          <h3>总体评价</h3>
+          <p id="overallSummary">还没有面试记录。</p>
+        </article>
+        <article class="summary-panel">
+          <h3>强项</h3>
+          <ul id="strengthList"></ul>
+        </article>
+        <article class="summary-panel">
+          <h3>风险点</h3>
+          <ul id="riskList"></ul>
+        </article>
+        <article class="summary-panel">
+          <h3>下一步练习</h3>
+          <ul id="practiceList"></ul>
+        </article>
+      </div>
+
+      <article class="summary-panel full">
+        <h3>回答记录</h3>
+        <div id="answerHistory" class="answer-history"></div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
