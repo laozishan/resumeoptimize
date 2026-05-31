@@ -155,9 +155,9 @@ async function handleJdFile(file) {
       if (text.trim()) {
         els.jdText.value = text.trim();
         state.jdText = els.jdText.value;
-        els.jdStatus.textContent = "OCR 已完成";
+        els.jdStatus.textContent = "截图已识别";
       } else {
-        els.jdStatus.textContent = "OCR 无结果，请粘贴文本";
+        els.jdStatus.textContent = "未读到文字，请粘贴文本";
       }
     } else {
       const text = await file.text();
@@ -283,7 +283,7 @@ els.resetButton.addEventListener("click", () => {
 
 els.voiceButton.addEventListener("click", () => {
   if (!recognitionApi) {
-    els.answerFeedback.textContent = "当前浏览器不支持内置语音识别。可以先用文字回答，或用 Chrome 再试。";
+    els.answerFeedback.textContent = "当前环境暂时无法使用语音输入。可以先用文字回答，或换 Chrome 再试。";
     els.feedbackPanel.classList.remove("hidden");
     return;
   }
@@ -466,7 +466,7 @@ async function enrichAnalysisWithAi() {
   if (!state.resumeText || !state.jdText) return;
   setBusy(els.analyzeButton, true, "AI 生成中");
   setBusy(els.refreshAnalysisButton, true, "AI 生成中");
-  els.fitSummary.textContent = "正在调用 DeepSeek 生成更精细的优化建议...";
+  els.fitSummary.textContent = "正在生成更精细的优化建议...";
   try {
     const ai = await requestAi("analysis", {
       resumeText: state.resumeText,
@@ -495,9 +495,9 @@ async function enrichAnalysisWithAi() {
         .slice(0, 8);
       state.currentQuestionIndex = 0;
     }
-    state.aiFitSummary = ai.fitSummary || "DeepSeek 已生成优化建议。";
+    state.aiFitSummary = ai.fitSummary || "已生成优化建议。";
   } catch (error) {
-    state.aiFitSummary = `DeepSeek 暂不可用，已使用本地规则版结果。原因：${error.message}`;
+    state.aiFitSummary = "暂时无法生成完整 AI 建议，已先提供基础分析结果。";
   } finally {
     setBusy(els.analyzeButton, false, "生成分析");
     setBusy(els.refreshAnalysisButton, false, "重新生成");
@@ -657,7 +657,7 @@ async function submitAnswer() {
     feedback = ai.feedback || feedback;
     followup = session.turnIndex < 2 ? (ai.followup || followup) : "";
   } catch (error) {
-    feedback = `${feedback} DeepSeek 暂不可用，本次使用本地反馈。`;
+    feedback = `${feedback} 当前已先提供基础反馈。`;
   } finally {
     setBusy(els.submitAnswerButton, false, "提交回答");
   }
